@@ -38,7 +38,7 @@ private slots:
     void sendTableToClients();
 
     void sendFilesToClient(QTcpSocket *socket, QByteArray &buffer);
-    QByteArray getFileDataForLoading(QString fileName);
+    void sendFileToClient(QDataStream &socketStream, QString fileName);
 
     void displayDebugMessage(const QString& str);
     void displayInfoMessage(const QString& str);

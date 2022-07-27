@@ -276,9 +276,7 @@ void Server::sendTableToClients() {
 /**
  * @brief Send selected files by client to client.
  *
- * @details Prepend message with string "flag:load,fileName:null,numFiles:%1;".
- *
- * Every file data prepend with string: "flag:load,fileName:%1,fileSize:%2;" (see sendFileToClient)
+ * @details Every file data prepend with string: "flag:load,fileName:%1,fileSize:%2;" (see sendFileToClient)
  *
  * @param socket
  * @param buffer byte array with filenames, splited by '\n'
@@ -289,20 +287,14 @@ void Server::sendFilesToClient(QTcpSocket *socket, QByteArray &buffer)
         if (socket->isOpen()) {
             QString fileNames = QString::fromUtf8(buffer);
             emit newDebugMessage(QString("Got file names from client sd:%1:\n%2").arg(socket->socketDescriptor()).arg(fileNames));
-            QStringList listOfFiles = fileNames.split("\n", QString::SkipEmptyParts);
+            QStringList listOfFiles = fileNames.split("\n");
             listOfFiles.removeAll(QString("")); // empty string means no file 👀
-
-            QByteArray byteArray;
-            for (QString fileName : listOfFiles) {  // write all files to one buffer cause each transaction is ended by socketStream << buffer; (-_-#)
-                                                    // UPD: well, it's complicated, cause if multiple files can be stored in buffer, then multiple files can be transmitted through socketStream << buffer; 👀
-                                                    //      But it works just once! So other big files by socketStream << buffer; are transmitted in the next transaction.
-                byteArray.append(getFileDataForLoading(fileName));
-            }
 
             QDataStream socketStream(socket);
             socketStream.setVersion(QDataStream::Qt_5_9);
 
-            socketStream << byteArray;  // start transaction and transmit ALL FILES
+            for (QString fileName : listOfFiles)
+                sendFileToClient(socketStream, fileName);
         } else
             emit newCriticalMessage("socket doesn't seem to be opened!");
     } else
@@ -310,13 +302,14 @@ void Server::sendFilesToClient(QTcpSocket *socket, QByteArray &buffer)
 }
 
 /**
- * @brief Send selected file from dirOfSavedFiles to client by storing them in buffer
+ * @brief Send selected file from dirOfSavedFiles to client
  *
  * @details prepend file data with string: "flag:load,fileName:%1,fileSize:%2;"
  *
+ * @param socketStream
  * @param fileName name of file that was selected
  */
-QByteArray Server::getFileDataForLoading(QString fileName)
+void Server::sendFileToClient(QDataStream &socketStream, QString fileName)
 {
     QString filePath = dirOfSavedFiles + "/" + fileName;
     QFile file(filePath);
@@ -332,7 +325,7 @@ QByteArray Server::getFileDataForLoading(QString fileName)
         QByteArray byteArray = file.readAll();
         byteArray.prepend(header);
 
-        return byteArray;
+        socketStream << byteArray;
     } else
         emit newWarningMessage(QString("Can't open file %1 to read!").arg(filePath));
 }
